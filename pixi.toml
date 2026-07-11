@@ -11,6 +11,8 @@ version = "0.1.0"
 python = ">3.11"
 jupyter = ">=1.1.1,<2"
 pandas = ">=3.0.3,<4"
+loguru = ">=0.7.3,<0.8"
+tqdm = ">=4.68.4,<5"
 
 [pypi-dependencies]
 nba-api = ">=1.11.4, <2"

@@ -6,11 +6,24 @@ import pandas as pd
 from datetime import datetime
 import time
 from enum import Enum
+from loguru import logger
+from tqdm import tqdm
+import random
 
 
 def main():
+    logger.info("Testing data ingestion loop...")
+    # Fetch 2024 season entries for the Grizzlies
+    griz_season = SeasonData.from_year(
+        team=NbaTeams.MEM, start_date=datetime(2026, 3, 31)
+    )
 
-    pass
+    logger.info(f"Successfully loaded {len(griz_season.games)} games!")
+    if griz_season.games:
+        logger.info("\nFirst game roster extract:")
+        logger.info(
+            griz_season.games[0].players[["familyName", "points", "assists"]].head()
+        )
 
 
 class NbaTeams(Enum):
@@ -39,9 +52,12 @@ class GameData:
     players: pd.DataFrame
     game_id: str
     game_date: datetime
+    is_home: bool = True
 
     @classmethod
-    def from_game_id(cls, id_game: str, team: NbaTeams, game_date: datetime):
+    def from_game_id(
+        cls, id_game: str, team: NbaTeams, game_date: datetime, home: bool
+    ):
 
         # Get box-score
         box = boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=id_game, timeout=30)
@@ -50,10 +66,18 @@ class GameData:
         players_df = box.player_stats.get_data_frame()
 
         # Only my team
-        df = players_df[players_df["teamTriCode"] == team.abbreviation]
+        df = players_df[players_df["teamTricode"] == team.abbreviation]
+
+        instance = cls(players=df, game_id=id_game, game_date=game_date, is_home=home)
+
+        # Make player full name
+        instance.add_full_name()
 
         # Create data class
-        return cls(players=df, game_id=id_game, game_date=game_date)
+        return instance
+
+    def add_full_name(self):
+        self.players["firstName"] + " " + self.players["familyName"]
 
 
 @dataclass
@@ -62,7 +86,7 @@ class SeasonData:
     team: NbaTeams
 
     @classmethod
-    def from_year(cls, team: NbaTeams, year_start: int):
+    def from_year(cls, team: NbaTeams, start_date: datetime):
         # Get the NBA team and their games played so far
         griz = teams.find_team_by_abbreviation(team.abbreviation)
         games = leaguegamefinder.LeagueGameFinder(
@@ -74,16 +98,27 @@ class SeasonData:
 
         # Filter by year
         games_df["date_time"] = pd.to_datetime(games_df["GAME_DATE"])
-        df = games_df[games_df["date_time"].dt.year > year_start]
+        end_date = datetime.now()
+
+        df = games_df[games_df["date_time"].between(start_date, end_date)]
 
         # Get GameData objects
         results = []
-        for tup in df.itertuples():
+        for tup in tqdm(df.itertuples(), desc="Pulling game data", total=len(df)):
+            # Is the game home or away
+            home = "vs" in tup.MATCHUP
+
             results.append(
                 GameData.from_game_id(
-                    id_game=tup.GAME_ID, team=team, game_date=tup.GAME_DATE
+                    id_game=tup.GAME_ID,
+                    team=team,
+                    game_date=tup.GAME_DATE,
+                    home=home,
                 )
             )
+
+            # Random jitter to not get flagged by API.
+            time.sleep(random.uniform(0.5, 2.5))
 
         return cls(games=results, team=team)
 
