@@ -9,6 +9,7 @@ from enum import Enum
 from loguru import logger
 from tqdm import tqdm
 import random
+from collections import namedtuple
 
 
 def main():
@@ -24,6 +25,10 @@ def main():
         logger.info(
             griz_season.games[0].players[["familyName", "points", "assists"]].head()
         )
+
+
+# Define the data shape once at the top of your test file
+GameMeta = namedtuple("GameMeta", ["game_id", "game_date", "matchup"])
 
 
 class NbaTeams(Enum):
@@ -52,11 +57,12 @@ class GameData:
     players: pd.DataFrame
     game_id: str
     game_date: datetime
-    is_home: bool = True
+    matchup: str
+    is_home: bool = False
 
     @classmethod
     def from_game_id(
-        cls, id_game: str, team: NbaTeams, game_date: datetime, home: bool
+        cls, id_game: str, team: NbaTeams, game_date: datetime, matchup: str
     ):
 
         # Get box-score
@@ -68,16 +74,26 @@ class GameData:
         # Only my team
         df = players_df[players_df["teamTricode"] == team.abbreviation]
 
-        instance = cls(players=df, game_id=id_game, game_date=game_date, is_home=home)
+        instance = cls(
+            players=df, game_id=id_game, game_date=game_date, matchup=matchup
+        )
 
         # Make player full name
         instance.add_full_name()
+
+        # Is game home or away
+        instance.get_home_away()
 
         # Create data class
         return instance
 
     def add_full_name(self):
-        self.players["firstName"] + " " + self.players["familyName"]
+        self.players["fullName"] = (
+            self.players["firstName"] + " " + self.players["familyName"]
+        )
+
+    def get_home_away(self):
+        self.is_home = "vs" in self.matchup
 
 
 @dataclass
@@ -106,14 +122,13 @@ class SeasonData:
         results = []
         for tup in tqdm(df.itertuples(), desc="Pulling game data", total=len(df)):
             # Is the game home or away
-            home = "vs" in tup.MATCHUP
 
             results.append(
                 GameData.from_game_id(
                     id_game=tup.GAME_ID,
                     team=team,
                     game_date=tup.GAME_DATE,
-                    home=home,
+                    matchup=tup.MATCHUP,
                 )
             )
 

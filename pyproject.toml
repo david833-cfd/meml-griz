@@ -29,10 +29,15 @@ platforms = ["osx-arm64"] # Adjust for your exact OS
 [tool.pixi.dependencies]
 python = ">=3.11"
 uv = "*"
+tqdm = ">=4.68.4,<5"
+loguru = ">=0.7.3,<0.8"
 
 [tool.pixi.feature.test.dependencies]
 pytest = ">=8.0.0"
 pytest-mock = ">=3.12.0"
+
+[tool.pixi.feature.test.pypi-dependencies]
+meml-griz = { path = ".", editable = true }
 
 [tool.pixi.environments]
 default = ["test"]
