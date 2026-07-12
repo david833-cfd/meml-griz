@@ -39,8 +39,15 @@ pytest-mock = ">=3.12.0"
 [tool.pixi.feature.test.pypi-dependencies]
 meml-griz = { path = ".", editable = true }
 
+[tool.pixi.feature.dev.dependencies]
+ipykernel = ">=6.0.0"
+nbstripout = ">=0.7.0"
+uv = ">=0.1.0"   
+
 [tool.pixi.environments]
 default = ["test"]
+test = { features = ["test"], solve-group = "default" }
+dev = { features = ["test", "dev"], solve-group = "default" }
 
 [tool.pixi.tasks]
 build = "uv build"
