@@ -15,7 +15,7 @@ from collections import namedtuple
 def main():
     logger.info("Testing data ingestion loop...")
     # Fetch 2024 season entries for the Grizzlies
-    griz_season = SeasonData.from_year(
+    griz_season = SeasonData.from_date_range(
         team=NbaTeams.MEM, start_date=datetime(2026, 3, 31)
     )
 
@@ -102,7 +102,9 @@ class SeasonData:
     team: NbaTeams
 
     @classmethod
-    def from_year(cls, team: NbaTeams, start_date: datetime):
+    def from_date_range(
+        cls, team: NbaTeams, start_date: datetime, end_date: datetime = datetime.now()
+    ):
         # Get the NBA team and their games played so far
         griz = teams.find_team_by_abbreviation(team.abbreviation)
         games = leaguegamefinder.LeagueGameFinder(
@@ -112,9 +114,8 @@ class SeasonData:
         # Get the df
         games_df = games.get_data_frames()[0]
 
-        # Filter by year
+        # Filter by date
         games_df["date_time"] = pd.to_datetime(games_df["GAME_DATE"])
-        end_date = datetime.now()
 
         df = games_df[games_df["date_time"].between(start_date, end_date)]
 
