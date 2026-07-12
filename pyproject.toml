@@ -28,6 +28,15 @@ platforms = ["osx-arm64"] # Adjust for your exact OS
 
 [tool.pixi.dependencies]
 python = ">=3.11"
+uv = "*"
+
+[tool.pixi.feature.test.dependencies]
+pytest = ">=8.0.0"
+pytest-mock = ">=3.12.0"
+
+[tool.pixi.environments]
+default = ["test"]
 
 [tool.pixi.tasks]
 build = "uv build"
+test = "pytest -vvvv tests/"
