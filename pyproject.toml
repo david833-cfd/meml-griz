@@ -1,0 +1,33 @@
+[build-system]
+requires = ["uv_build>=0.11.23,<0.12.0"]
+build-backend = "uv_build"
+
+[project]
+name = "meml-griz"
+version = "0.0.1"
+description = "A Python package for analyzing Memphis Grizzlies data and building Grizzlies ML models."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "David Palmer", email = "your.email@example.com" }
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+dependencies = [
+    "nba_api>=1.4.1",
+    "pandas>=2.0.0",
+]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64"] # Adjust for your exact OS
+
+[tool.pixi.dependencies]
+python = ">=3.11"
+
+[tool.pixi.tasks]
+build = "uv build"
