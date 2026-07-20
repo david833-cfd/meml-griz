@@ -96,7 +96,20 @@ class GameData:
     game_id: str
     game_date: datetime
     matchup: str
-    is_home: bool = False
+
+    def __post_init__(self):
+        self._wrangle_data()
+
+    def _wrangle_data(self):
+        # Make player full name
+        self.add_full_name()
+
+        # Change minutes to timedelta data type
+        minutes = self.players["minutes"].replace(r"^\s*$", "00:00", regex=True)
+        self.players["minutes"] = pd.to_timedelta("00:" + minutes)
+
+        # Get true/false if player was active
+        self.get_is_active()
 
     @classmethod
     def from_game_id(
@@ -123,12 +136,6 @@ class GameData:
             players=team_df, game_id=id_game, game_date=game_date, matchup=matchup
         )
 
-        # Make player full name
-        instance.add_full_name()
-
-        # Is game home or away
-        instance.get_home_away()
-
         # Create data class
         return instance
 
@@ -137,8 +144,17 @@ class GameData:
             self.players["firstName"] + " " + self.players["familyName"]
         )
 
-    def get_home_away(self):
-        self.is_home = "vs" in self.matchup
+    @property
+    def is_home(self):
+        return "vs" in self.matchup
+
+    @property
+    def opponent(self):
+        opponent = self.matchup.split(" ")[-1]
+        return NbaTeams[opponent]
+
+    def get_is_active(self):
+        self.players["isActive"] = self.players["minutes"] > pd.Timedelta(0)
 
 
 @dataclass
