@@ -1,7 +1,7 @@
 from nba_api.stats.endpoints import leaguegamefinder
 from nba_api.stats.endpoints import boxscoretraditionalv3, boxscoreadvancedv3
 from nba_api.stats.static import teams
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import pandas as pd
 from datetime import datetime
 import time
@@ -54,7 +54,7 @@ class NbaTeams(Enum):
     CLE = ("CLE", "Cleveland Cavaliers", "1610612739")
     DAL = ("DAL", "Dallas Mavericks", "1610612742")
     DEN = ("DEN", "Denver Nuggets", "1610612743")
-    DET = ("DET", "Detroit Pistons", "1610612744")
+    DET = ("DET", "Detroit Pistons", "1610612765")
     GSW = ("GSW", "Golden State Warriors", "1610612744")
     HOU = ("HOU", "Houston Rockets", "1610612745")
     IND = ("IND", "Indiana Pacers", "1610612754")
@@ -161,7 +161,11 @@ class GameData:
 class SeasonData:
     games: list[GameData]
     team: NbaTeams
-    season_df: pd.DataFrame = None
+    season_df: pd.DataFrame = field(default=None, init=False)
+
+    def __post_init__(self):
+        self.games_to_df()
+        self.get_participation_rate()
 
     @classmethod
     def from_date_range(
@@ -202,7 +206,7 @@ class SeasonData:
             )
 
             # Random jitter to not get flagged by API.
-            time.sleep(random.uniform(0.1, 3.0))
+            time.sleep(random.uniform(0.1, 2.5))
 
         return cls(games=results, team=team)
 
