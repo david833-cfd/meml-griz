@@ -1,7 +1,7 @@
 from nba_api.stats.endpoints import leaguegamefinder
 from nba_api.stats.endpoints import boxscoretraditionalv3, boxscoreadvancedv3
 from nba_api.stats.static import teams
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import pandas as pd
 from datetime import datetime
 import time
@@ -54,7 +54,7 @@ class NbaTeams(Enum):
     CLE = ("CLE", "Cleveland Cavaliers", "1610612739")
     DAL = ("DAL", "Dallas Mavericks", "1610612742")
     DEN = ("DEN", "Denver Nuggets", "1610612743")
-    DET = ("DET", "Detroit Pistons", "1610612744")
+    DET = ("DET", "Detroit Pistons", "1610612765")
     GSW = ("GSW", "Golden State Warriors", "1610612744")
     HOU = ("HOU", "Houston Rockets", "1610612745")
     IND = ("IND", "Indiana Pacers", "1610612754")
@@ -96,7 +96,20 @@ class GameData:
     game_id: str
     game_date: datetime
     matchup: str
-    is_home: bool = False
+
+    def __post_init__(self):
+        self._wrangle_data()
+
+    def _wrangle_data(self):
+        # Make player full name
+        self.add_full_name()
+
+        # Change minutes to timedelta data type
+        minutes = self.players["minutes"].replace(r"^\s*$", "00:00", regex=True)
+        self.players["minutes"] = pd.to_timedelta("00:" + minutes)
+
+        # Get true/false if player was active
+        self.get_is_active()
 
     @classmethod
     def from_game_id(
@@ -123,12 +136,6 @@ class GameData:
             players=team_df, game_id=id_game, game_date=game_date, matchup=matchup
         )
 
-        # Make player full name
-        instance.add_full_name()
-
-        # Is game home or away
-        instance.get_home_away()
-
         # Create data class
         return instance
 
@@ -137,15 +144,28 @@ class GameData:
             self.players["firstName"] + " " + self.players["familyName"]
         )
 
-    def get_home_away(self):
-        self.is_home = "vs" in self.matchup
+    @property
+    def is_home(self):
+        return "vs" in self.matchup
+
+    @property
+    def opponent(self):
+        opponent = self.matchup.split(" ")[-1]
+        return NbaTeams[opponent]
+
+    def get_is_active(self):
+        self.players["isActive"] = self.players["minutes"] > pd.Timedelta(0)
 
 
 @dataclass
 class SeasonData:
     games: list[GameData]
     team: NbaTeams
-    season_df: pd.DataFrame = None
+    season_df: pd.DataFrame = field(default=None, init=False)
+
+    def __post_init__(self):
+        self.games_to_df()
+        self.get_participation_rate()
 
     @classmethod
     def from_date_range(
@@ -186,7 +206,7 @@ class SeasonData:
             )
 
             # Random jitter to not get flagged by API.
-            time.sleep(random.uniform(0.1, 3.0))
+            time.sleep(random.uniform(0.1, 2.5))
 
         return cls(games=results, team=team)
 
