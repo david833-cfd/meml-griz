@@ -10,6 +10,7 @@ from loguru import logger
 from tqdm import tqdm
 import random
 from collections import namedtuple
+from meml_griz.settings import CACHE_DIR, SLEEP_MAX, SLEEP_MIN
 
 
 def main():
@@ -116,18 +117,14 @@ class GameData:
         cls, id_game: str, team: NbaTeams, game_date: datetime, matchup: str
     ):
 
-        # Get traditional box-score
-        box = boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=id_game, timeout=30)
-        box_adv = boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=id_game, timeout=30)
+        cache_file = CACHE_DIR / f"{id_game}.parquet"
 
-        # Only player data. Merge on team ID, player family name, player first name
-        adv_df = box_adv.player_stats.get_data_frame()
-        box_df = box.player_stats.get_data_frame()
-        merge_cols = list(adv_df.columns.intersection(box_df.columns))
-        df = box_df.merge(
-            right=adv_df,
-            on=merge_cols,
-        )
+        if cache_file.exists():
+            df = pd.read_parquet(cache_file)
+        else:
+            # If not in cache, then write to file for later.
+            df = pull_game_data(game_id=id_game)
+            df.to_parquet(cache_file)
 
         # Only my team
         team_df = df[df["teamTricode"] == team.abbreviation].reset_index(drop=True)
@@ -162,6 +159,9 @@ class SeasonData:
     games: list[GameData]
     team: NbaTeams
     season_df: pd.DataFrame = field(default=None, init=False)
+
+    SLEEP_MIN: float = field(default=0.1)
+    SLEEP_MAX: float = field(default=10)
 
     def __post_init__(self):
         self.games_to_df()
@@ -205,9 +205,6 @@ class SeasonData:
                 )
             )
 
-            # Random jitter to not get flagged by API.
-            time.sleep(random.uniform(0.1, 2.5))
-
         return cls(games=results, team=team)
 
     def games_to_df(self):
@@ -228,6 +225,26 @@ class SeasonData:
             / ngames
             * 100
         )
+
+
+def pull_game_data(
+    game_id: str, sleep_min: float = SLEEP_MIN, sleep_max: float = SLEEP_MAX
+):
+    # Get traditional box-score
+    box = boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id, timeout=30)
+    box_adv = boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=game_id, timeout=30)
+
+    # Random jitter to not get flagged by API.
+    time.sleep(random.uniform(sleep_min, sleep_max))
+
+    # Only player data. Merge on team ID, player family name, player first name
+    adv_df = box_adv.player_stats.get_data_frame()
+    box_df = box.player_stats.get_data_frame()
+    merge_cols = list(adv_df.columns.intersection(box_df.columns))
+    return box_df.merge(
+        right=adv_df,
+        on=merge_cols,
+    )
 
 
 if __name__ == "__main__":

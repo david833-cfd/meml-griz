@@ -27,13 +27,15 @@ channels = ["conda-forge"]
 platforms = ["osx-arm64"] # Adjust for your exact OS
 
 [tool.pixi.dependencies]
-python = ">=3.11"
-uv = "*"
+python = "*"
 tqdm = ">=4.68.4,<5"
 loguru = ">=0.7.3,<0.8"
 seaborn = ">=0.13.2,<0.14"
 ipython = ">=9.15.0,<10"
 ipykernel = ">=7.3.0,<8"
+polars = ">=1.42.1,<2"
+pathlib = ">=1.0.1,<2"
+pyarrow = ">=25.0.0,<26"
 
 [tool.pixi.feature.test.dependencies]
 pytest = ">=8.0.0"
