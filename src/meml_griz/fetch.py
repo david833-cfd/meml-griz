@@ -19,7 +19,7 @@ def main():
     # Fetch 2026 season entries for the Grizzlies
     griz_season = SeasonData.from_date_range(
         team=NbaTeams.MEM,
-        start_date=datetime(2026, 3, 31),
+        start_date=datetime(2025, 3, 31),
         end_date=datetime(2026, 4, 3),
     )
 
@@ -29,6 +29,8 @@ def main():
         logger.info(
             griz_season.games[0].players[["familyName", "points", "assists"]].head()
         )
+
+    griz_season.get_team_stat()
 
 
 # Define the data shape once at the top of your test file
@@ -222,6 +224,56 @@ class SeasonData:
             / ngames
             * 100
         )
+
+    def get_team_stat(self):
+        # Sum the counting stats
+        count_stats = [
+            "fieldGoalsMade",
+            "fieldGoalsAttempted",
+            "threePointersMade",
+            "threePointersAttempted",
+            "freeThrowsMade",
+            "freeThrowsAttempted",
+            "reboundsOffensive",
+            "reboundsDefensive",
+            "reboundsTotal",
+            "assists",
+            "steals",
+            "blocks",
+            "turnovers",
+            "foulsPersonal",
+            "points",
+        ]
+        id_stats = [
+            "gameId",
+            "teamId",
+            "teamCity",
+            "teamName",
+            "teamTricode",
+            "teamSlug",
+            "gameDate",
+        ]
+
+        # Sum team stats for each game
+        _df = self.season_df.groupby(id_stats)[count_stats].sum()
+
+        # Get opponent and team dfs
+        team_df = _df.xs(self.team.abbreviation, level="teamTricode")
+        opp_df = _df.drop(self.team.abbreviation, level="teamTricode")
+        opp_df = opp_df.reset_index(
+            level=["teamId", "teamCity", "teamName", "teamSlug", "gameDate"], drop=True
+        )
+        opp_df = opp_df.add_prefix("opponent_")
+
+        # Join data on columns
+        stats_df = team_df.join(opp_df).reset_index()
+
+        # Create map for if the team is away or home
+        id_to_home = {game.game_id: game.is_home for game in self.games}
+        stats_df["home_game"] = stats_df["gameId"].map(id_to_home)
+
+        # Add attribute to object
+        self.team_stats_df = stats_df.copy()
 
 
 def pull_game_data(
