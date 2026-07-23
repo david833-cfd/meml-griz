@@ -126,11 +126,8 @@ class GameData:
             df = pull_game_data(game_id=id_game)
             df.to_parquet(cache_file)
 
-        # Only my team
-        team_df = df[df["teamTricode"] == team.abbreviation].reset_index(drop=True)
-
         instance = cls(
-            players=team_df, game_id=id_game, game_date=game_date, matchup=matchup
+            players=df, game_id=id_game, game_date=game_date, matchup=matchup
         )
 
         # Create data class
@@ -245,6 +242,19 @@ def pull_game_data(
         right=adv_df,
         on=merge_cols,
     )
+
+
+def fill_nba_cache(from_date: datetime):
+    logger.info("Filling the cache takes a while...")
+
+    # Download all team games since 2022-2023 season
+    for team in NbaTeams:
+        logger.info(f"Filling cache for {team} in {CACHE_DIR}")
+        _ = SeasonData.from_date_range(
+            team=team,
+            start_date=from_date,
+            end_date=datetime.now(),
+        )
 
 
 if __name__ == "__main__":
