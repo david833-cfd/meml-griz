@@ -267,7 +267,15 @@ class SeasonData:
         team_df = _df.xs(self.team.abbreviation, level="teamTricode")
         opp_df = _df.drop(self.team.abbreviation, level="teamTricode")
         opp_df = opp_df.reset_index(
-            level=["teamId", "teamCity", "teamName", "teamSlug", "gameDate"], drop=True
+            level=[
+                "teamId",
+                "teamTricode",
+                "teamCity",
+                "teamName",
+                "teamSlug",
+                "gameDate",
+            ],
+            drop=False,
         )
         opp_df = opp_df.add_prefix("opponent_")
 
