@@ -169,6 +169,7 @@ class SeasonData:
     def __post_init__(self):
         self.games_to_df()
         self.get_participation_rate()
+        self.get_team_stat()
 
     @classmethod
     def from_date_range(
@@ -256,6 +257,7 @@ class SeasonData:
             "teamTricode",
             "teamSlug",
             "gameDate",
+            "seasonYear",
         ]
 
         # Sum team stats for each game
@@ -275,6 +277,9 @@ class SeasonData:
         # Create map for if the team is away or home
         id_to_home = {game.game_id: game.is_home for game in self.games}
         stats_df["home_game"] = stats_df["gameId"].map(id_to_home)
+
+        # Did the team win or lose?
+        stats_df["win"] = stats_df["points"] > stats_df["opponent_points"]
 
         # Add attribute to object
         self.team_stats_df = stats_df.copy()
