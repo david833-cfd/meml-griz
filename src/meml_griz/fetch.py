@@ -96,6 +96,7 @@ class NbaTeams(Enum):
 @dataclass
 class GameData:
     players: pd.DataFrame
+    team: NbaTeams
     game_id: str
     game_date: datetime
     matchup: str
@@ -128,8 +129,11 @@ class GameData:
             df = pull_game_data(game_id=id_game)
             df.to_parquet(cache_file)
 
+        # Add season year
+        df["seasonYear"] = pd.to_datetime(df["gameId"].str[3:5], format="%y").dt.year
+
         instance = cls(
-            players=df, game_id=id_game, game_date=game_date, matchup=matchup
+            players=df, team=team, game_id=id_game, game_date=game_date, matchup=matchup
         )
 
         # Create data class
