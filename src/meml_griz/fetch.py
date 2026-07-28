@@ -13,19 +13,6 @@ from collections import namedtuple
 from meml_griz.settings import CACHE_DIR, SLEEP_MAX, SLEEP_MIN
 from pathlib import Path
 import os
-from nba_api.stats.library.http import NBAStatsHTTP
-
-# Force nba_api to masquerade as a normal web browser
-custom_headers = {
-    "Host": "stats.nba.com",
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "en-US,en;q=0.9",
-    "Referer": "https://nba.com",
-    "Connection": "keep-alive",
-}
-
-NBAStatsHTTP.default_headers = custom_headers
 
 
 def main():
