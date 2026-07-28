@@ -11,6 +11,21 @@ from tqdm import tqdm
 import random
 from collections import namedtuple
 from meml_griz.settings import CACHE_DIR, SLEEP_MAX, SLEEP_MIN
+from pathlib import Path
+import os
+from nba_api.stats.library.http import NBAStatsHTTP
+
+# Force nba_api to masquerade as a normal web browser
+custom_headers = {
+    "Host": "stats.nba.com",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://nba.com",
+    "Connection": "keep-alive",
+}
+
+NBAStatsHTTP.default_headers = custom_headers
 
 
 def main():
@@ -18,7 +33,9 @@ def main():
 
     # Fetch 2026 season entries for the Grizzlies
     griz_season = SeasonData.from_date_range(
-        team=NbaTeams.MEM,
+        teams=[
+            NbaTeams.MEM,
+        ],
         start_date=datetime(2025, 3, 31),
         end_date=datetime(2026, 4, 3),
     )
@@ -26,9 +43,7 @@ def main():
     logger.info(f"Successfully loaded {len(griz_season.games)} games!")
     if griz_season.games:
         logger.info("\nFirst game roster extract:")
-        logger.info(
-            griz_season.games[0].players[["familyName", "points", "assists"]].head()
-        )
+        logger.info(griz_season.games[0].players[["familyName", "points", "assists"]].head())
 
     griz_season.get_team_stat()
 
@@ -96,7 +111,6 @@ class NbaTeams(Enum):
 @dataclass
 class GameData:
     players: pd.DataFrame
-    team: NbaTeams
     game_id: str
     game_date: datetime
     matchup: str
@@ -115,34 +129,31 @@ class GameData:
         # Get true/false if player was active
         self.get_is_active()
 
+        # What season is this game
+        self.add_season_year()
+
+        # Add home/away columns
+        self.add_home_away()
+
     @classmethod
-    def from_game_id(
-        cls, id_game: str, team: NbaTeams, game_date: datetime, matchup: str
-    ):
+    def from_game_id(cls, id_game: str, game_date: datetime, matchup: str):
 
         cache_file = CACHE_DIR / f"{id_game}.parquet"
 
-        if cache_file.exists():
-            df = pd.read_parquet(cache_file)
-        else:
+        if not cache_file.exists():
             # If not in cache, then write to file for later.
             df = pull_game_data(game_id=id_game)
             df.to_parquet(cache_file)
+        else:
+            df = pd.read_parquet(cache_file)
 
-        # Add season year
-        df["seasonYear"] = pd.to_datetime(df["gameId"].str[3:5], format="%y").dt.year
-
-        instance = cls(
-            players=df, team=team, game_id=id_game, game_date=game_date, matchup=matchup
-        )
+        instance = cls(players=df, game_id=id_game, game_date=game_date, matchup=matchup)
 
         # Create data class
         return instance
 
     def add_full_name(self):
-        self.players["fullName"] = (
-            self.players["firstName"] + " " + self.players["familyName"]
-        )
+        self.players["fullName"] = self.players["firstName"] + " " + self.players["familyName"]
 
     @property
     def is_home(self):
@@ -153,6 +164,20 @@ class GameData:
         opponent = self.matchup.split(" ")[-1]
         return NbaTeams[opponent]
 
+    @property
+    def home_team(self):
+        return NbaTeams[self.matchup.split(" ")[0]]
+
+    def add_season_year(self):
+        self.players["seasonYear"] = pd.to_datetime(
+            self.players["gameId"].str[3:5], format="%y"
+        ).dt.year
+
+    def add_home_away(self):
+        self.players[["home_team", "away_team"]] = (
+            self.players["matchup"].str.split(" ", expand=True).iloc[:, [0, 2]]
+        )
+
     def get_is_active(self):
         self.players["isActive"] = self.players["minutes"] > pd.Timedelta(0)
 
@@ -160,7 +185,7 @@ class GameData:
 @dataclass
 class SeasonData:
     games: list[GameData]
-    team: NbaTeams
+    teams: list[NbaTeams]
     season_df: pd.DataFrame = field(default=None, init=False)
 
     SLEEP_MIN: float = field(default=0.1)
@@ -174,42 +199,60 @@ class SeasonData:
     @classmethod
     def from_date_range(
         cls,
-        team: NbaTeams,
+        teams: list[NbaTeams],
         start_date: datetime,
         end_date: datetime = datetime.now(),
         season_type: SeasonType = SeasonType.REGULAR_SEASON,
     ):
-        # Get the NBA team and their games played so far
-        griz = teams.find_team_by_abbreviation(team.abbreviation)
+        # Get the NBA games played so far
         games = leaguegamefinder.LeagueGameFinder(
-            team_id_nullable=griz["id"], timeout=30
+            date_from_nullable=start_date.strftime("%m/%d/%Y"),
+            date_to_nullable=end_date.strftime("%m/%d/%Y"),
+            timeout=30,
         )
 
         # Get the df
         games_df = games.get_data_frames()[0]
 
-        # Filter by date
+        # Filter by date & season type
         games_df["date_time"] = pd.to_datetime(games_df["GAME_DATE"])
-        df = games_df[games_df["date_time"].between(start_date, end_date)]
+        filter_games = games_df[
+            (games_df["date_time"].between(start_date, end_date))
+            & (games_df["SEASON_ID"].str.startswith(season_type.value))
+            & (games_df["TEAM_ABBREVIATION"].isin([team.abbreviation for team in teams]))
+            & (games_df.duplicated(subset=["GAME_ID"], keep="first"))  # Drop duplicate IDs
+        ]
 
-        # Filter by season type (pre, regular, playoffs)
-        df = df[df["SEASON_ID"].str.startswith(season_type.value)]
-
-        # Get GameData objects
         results = []
-        for tup in tqdm(df.itertuples(), desc="Pulling game data", total=len(df)):
-            # Is the game home or away
 
-            results.append(
-                GameData.from_game_id(
-                    id_game=tup.GAME_ID,
-                    team=team,
-                    game_date=tup.GAME_DATE,
-                    matchup=tup.MATCHUP,
+        # Map game id to date
+        id_to_date = dict(zip(filter_games["GAME_ID"], filter_games["date_time"]))
+        id_to_matchup = dict(zip(filter_games["GAME_ID"], filter_games["MATCHUP"]))
+
+        # Get path to cached files
+        for tup in tqdm(
+            filter_games.itertuples(), desc="Pulling game data", total=len(filter_games)
+        ):
+            # Get df paths
+            results.append(file_from_game_id(game_id=tup.GAME_ID))
+
+        # Read the data
+        df = pd.read_parquet(results, engine="pyarrow")
+        df["gameDate"] = df["gameId"].map(id_to_date)
+        df["matchup"] = df["gameId"].map(id_to_matchup)
+
+        games_data = []
+        for (gameid, date), group in df.groupby(["gameId", "gameDate"]):
+            games_data.append(
+                GameData(
+                    players=group,
+                    game_id=gameid,
+                    game_date=date,
+                    matchup=id_to_matchup[gameid],
                 )
             )
 
-        return cls(games=results, team=team)
+        return cls(games=games_data, teams=teams)
 
     def games_to_df(self):
         df = pd.concat([game.players for game in self.games], ignore_index=True)
@@ -225,9 +268,7 @@ class SeasonData:
     def get_participation_rate(self):
         ngames = len(self.season_df["gameId"].unique())
         self.season_df["gameParticipationRate"] = (
-            self.season_df.groupby("playerSlug")["gameId"].transform("count")
-            / ngames
-            * 100
+            self.season_df.groupby("playerSlug")["gameId"].transform("count") / ngames * 100
         )
 
     def get_team_stat(self):
@@ -258,44 +299,34 @@ class SeasonData:
             "teamSlug",
             "gameDate",
             "seasonYear",
+            "matchup",
         ]
 
         # Sum team stats for each game
-        _df = self.season_df.groupby(id_stats)[count_stats].sum()
+        df = self.season_df.groupby(id_stats)[count_stats].sum().reset_index()
 
-        # Get opponent and team dfs
-        team_df = _df.xs(self.team.abbreviation, level="teamTricode")
-        opp_df = _df.drop(self.team.abbreviation, level="teamTricode")
-        opp_df = opp_df.reset_index(
-            level=[
-                "teamId",
-                "teamTricode",
-                "teamCity",
-                "teamName",
-                "teamSlug",
-                "gameDate",
-            ],
-            drop=False,
-        )
-        opp_df = opp_df.add_prefix("opponent_")
+        # Get home/away team from matchup
+        df[["home_team", "away_team"]] = df["matchup"].str.split(" ", expand=True).loc[:, [0, 2]]
 
-        # Join data on columns
-        stats_df = team_df.join(opp_df).reset_index()
+        # Mark who won the game
+        df["win"] = df["points"] == df.groupby(["gameId"])["points"].transform("max")
 
-        # Create map for if the team is away or home
-        id_to_home = {game.game_id: game.is_home for game in self.games}
-        stats_df["home_game"] = stats_df["gameId"].map(id_to_home)
+        # Reset index
+        df = df.reset_index()
 
-        # Did the team win or lose?
-        stats_df["win"] = stats_df["points"] > stats_df["opponent_points"]
+        # Make gameId number
+        df["gameId"] = df["gameId"].astype(int)
+
+        # Make data for home teams and away teams
+        df["home_game"] = df["teamTricode"] == df["home_team"]
+        home = df[df["home_game"]]
+        away = df[~(df["home_game"])]
 
         # Add attribute to object
-        self.team_stats_df = stats_df.copy()
+        self.team_stats_df = pd.concat([home, away], ignore_index=True)
 
 
-def pull_game_data(
-    game_id: str, sleep_min: float = SLEEP_MIN, sleep_max: float = SLEEP_MAX
-):
+def pull_game_data(game_id: str, sleep_min: float = SLEEP_MIN, sleep_max: float = SLEEP_MAX):
     # Get traditional box-score
     box = boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id, timeout=30)
     box_adv = boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=game_id, timeout=30)
@@ -324,6 +355,17 @@ def fill_nba_cache(from_date: datetime):
             start_date=from_date,
             end_date=datetime.now(),
         )
+
+
+def file_from_game_id(game_id: str) -> os.PathLike:
+
+    cache_path = CACHE_DIR / f"{game_id}.parquet"
+
+    if not cache_path.exists():
+        df = pull_game_data(game_id=game_id)
+        df.to_parquet(cache_path)
+
+    return cache_path
 
 
 if __name__ == "__main__":
