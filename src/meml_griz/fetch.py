@@ -104,6 +104,7 @@ class GameData:
     matchup: str
 
     def __post_init__(self):
+        self.players["matchup"] = self.matchup
         self._wrangle_data()
 
     def _wrangle_data(self):

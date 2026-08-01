@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from joblib import dump, load
 from sklearn.metrics import (
     accuracy_score,
     f1_score,
@@ -36,25 +37,41 @@ class TestData:
     y: np.ndarray
 
 
-class SerialModel(ABC):
+class ModelLoader(ABC):
+    def __init__(self, model, model_path: Path):
+        self.model = model
+        self.model_path = model_path
+
     @abstractmethod
-    def deserialize(self, model_path: Path):
+    def deserialize(self):
         pass
 
     @abstractmethod
-    def get_loader(self):
+    def serialize(self):
         pass
+
+
+class SklearnLoader(ModelLoader):
+    def deserialize(self):
+        return load(self.model_path)
+
+    def serialize(self):
+        return dump(self.model, self.model_path)
 
 
 class Sniff:
+    def __init__(self, model, test_data: TestData):
+        self.model = model
+        self.test_data = test_data
+
     @classmethod
     def from_model_object(cls, model, test_data: TestData):
         return cls(model, test_data)
 
     @classmethod
-    def from_serialized_model(cls, model_path: Path, test_data: TestData):
+    def from_serialized_model(cls, model_loader: ModelLoader, test_data: TestData):
         # Load in the serialized model
-        model = None
+        model = model_loader.deserialize()
 
         return cls.from_model_object(model, test_data)
 
