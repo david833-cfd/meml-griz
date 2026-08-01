@@ -1,12 +1,14 @@
 from datetime import datetime
+
 import pandas as pd
-from meml_griz import fetch
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
-from sklearn.linear_model import LogisticRegression
+
+from meml_griz import fetch, snifcheck
 
 
 def main():
@@ -51,7 +53,7 @@ def main():
     test = (
         df.query("seasonYear == 2025 & teamSlug == 'grizzlies'")
         .sort_values("gameDate")
-        .set_index(["gameDate"] + list(cats) + list(bools))
+        .set_index(["gameDate"] + list(cats) + list(bools) + list(targets))
         .rolling(window=3)
         .mean(numeric_only=True)
     )
@@ -94,7 +96,7 @@ def main():
 
     # Fit the data on win or lose
     X = train[features]
-    y = train[list(targets)].values.ravel()
+    y = train[list(targets)].to_numpy().ravel()
     model = pipeline.fit(X, y)
 
     # Predict win/loss
@@ -102,6 +104,16 @@ def main():
     print(
         f"Total predicted record for 2025 season: {predict.sum()} - {len(predict) - predict.sum()}"
     )
+
+    # Score the model
+    sniff = snifcheck.ClassifierSniff.from_model_object(
+        model=model,
+        test_data=snifcheck.TestData(
+            X=test.reset_index()[features], y=test.reset_index()[list(targets)].to_numpy().ravel()
+        ),
+    )
+
+    print(sniff.classification_report)
 
 
 if __name__ == "__main__":

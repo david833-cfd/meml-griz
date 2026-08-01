@@ -22,6 +22,7 @@ import numpy as np
 from joblib import dump, load
 from sklearn.metrics import (
     accuracy_score,
+    classification_report,
     mean_absolute_error,
     mean_squared_error,
     precision_score,
@@ -58,7 +59,7 @@ class SklearnLoader(ModelLoader):
         return dump(self.model, self.model_path)
 
 
-class Sniff:
+class BaseSniff(ABC):
     def __init__(self, model, test_data: TestData):
         self.model = model
         self.test_data = test_data
@@ -77,32 +78,44 @@ class Sniff:
         return self.model.predict(self.test_data.X)
 
     @property
-    def y_prediction(self):
+    def y_prediction(self) -> np.ndarray:
         return self.get_prediction()
 
-    # @property
-    # def accuracy(self):
-    #     return accuracy_score(self.test_data.y, self.y_prediction)
+    @property
+    def y_true(self) -> np.ndarray:
+        return np.array(self.test_data.y).flatten()
 
-    # @property
-    # def precision(self):
-    #     return precision_score(self.test_data.y, self.y_prediction, average="weighted")
+
+class ClassifierSniff(BaseSniff):
+    @property
+    def accuracy(self):
+        return accuracy_score(self.y_true, self.y_prediction)
 
     @property
+    def precision(self):
+        return precision_score(self.y_true, self.y_prediction, average="weighted")
+
+    @property
+    def classification_report(self):
+        return classification_report(self.y_true, self.y_prediction)
+
+
+class RegressorSniff(BaseSniff):
+    @property
     def r2_score(self):
-        return r2_score(self.test_data.y, self.y_prediction)
+        return r2_score(self.y_true, self.y_prediction)
 
     @property
     def mean_absolute_error(self):
-        return mean_absolute_error(self.test_data.y, self.y_prediction)
+        return mean_absolute_error(self.y_true, self.y_prediction)
 
     @property
     def mean_squared_error(self):
-        return mean_squared_error(self.test_data.y, self.y_prediction)
+        return mean_squared_error(self.y_true, self.y_prediction)
 
     @property
     def root_mean_squared_error(self):
-        return root_mean_squared_error(self.test_data.y, self.y_prediction)
+        return root_mean_squared_error(self.y_true, self.y_prediction)
 
 
 def main():
@@ -111,14 +124,14 @@ def main():
     from sklearn.linear_model import LinearRegression
 
     x = np.linspace(0, 10, 51).reshape(-1, 1)
-    y = 2 * x + 4 + np.random.rand(x.shape[0], 1) * 5
+    y = np.sin(x) + 2 * x + np.random.rand(x.shape[0], 1) * 5
 
     model = LinearRegression()
     model.fit(x, y)
     pred_x = np.linspace(0, 10, 10).reshape(-1, 1)
     pred_y = model.predict(pred_x)
 
-    sniff = Sniff.from_model_object(model=model, test_data=TestData(X=x, y=y))
+    sniff = RegressorSniff.from_model_object(model=model, test_data=TestData(X=x, y=y))
 
     # Extract properties into a list of dictionaries
     df = pd.DataFrame(

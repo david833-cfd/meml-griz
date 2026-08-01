@@ -58,10 +58,10 @@ def test_snif_factory(serial_path, example_model):
     loader.serialize()
 
     # Use Sniff to load the model from serialized path
-    serial = snifcheck.Sniff.from_serialized_model(loader, test_data)
+    serial = snifcheck.BaseSniff.from_serialized_model(loader, test_data)
 
     # Load just the model
-    memory = snifcheck.Sniff.from_model_object(example_model, test_data)
+    memory = snifcheck.BaseSniff.from_model_object(example_model, test_data)
 
     # Check that the loaded model is the same as the original
     assert np.allclose(serial.model.coef_, example_model.coef_)
