@@ -22,12 +22,11 @@ import numpy as np
 from joblib import dump, load
 from sklearn.metrics import (
     accuracy_score,
-    f1_score,
     mean_absolute_error,
     mean_squared_error,
     precision_score,
     r2_score,
-    recall_score,
+    root_mean_squared_error,
 )
 
 
@@ -72,8 +71,74 @@ class Sniff:
     def from_serialized_model(cls, model_loader: ModelLoader, test_data: TestData):
         # Load in the serialized model
         model = model_loader.deserialize()
-
         return cls.from_model_object(model, test_data)
 
     def get_prediction(self):
-        pass
+        return self.model.predict(self.test_data.X)
+
+    @property
+    def y_prediction(self):
+        return self.get_prediction()
+
+    # @property
+    # def accuracy(self):
+    #     return accuracy_score(self.test_data.y, self.y_prediction)
+
+    # @property
+    # def precision(self):
+    #     return precision_score(self.test_data.y, self.y_prediction, average="weighted")
+
+    @property
+    def r2_score(self):
+        return r2_score(self.test_data.y, self.y_prediction)
+
+    @property
+    def mean_absolute_error(self):
+        return mean_absolute_error(self.test_data.y, self.y_prediction)
+
+    @property
+    def mean_squared_error(self):
+        return mean_squared_error(self.test_data.y, self.y_prediction)
+
+    @property
+    def root_mean_squared_error(self):
+        return root_mean_squared_error(self.test_data.y, self.y_prediction)
+
+
+def main():
+    import matplotlib.pyplot as plt
+    import pandas as pd
+    from sklearn.linear_model import LinearRegression
+
+    x = np.linspace(0, 10, 51).reshape(-1, 1)
+    y = 2 * x + 4 + np.random.rand(x.shape[0], 1) * 5
+
+    model = LinearRegression()
+    model.fit(x, y)
+    pred_x = np.linspace(0, 10, 10).reshape(-1, 1)
+    pred_y = model.predict(pred_x)
+
+    sniff = Sniff.from_model_object(model=model, test_data=TestData(X=x, y=y))
+
+    # Extract properties into a list of dictionaries
+    df = pd.DataFrame(
+        [
+            {
+                # "accuracy": sniff.accuracy,
+                # "precision": sniff.precision,
+                "r2_score": sniff.r2_score,
+                "mae": sniff.mean_absolute_error,
+                "mse": sniff.mean_squared_error,
+                "rmse": sniff.root_mean_squared_error,
+            }
+        ]
+    )
+    print(df)
+
+    plt.plot(x, y, "o")
+    plt.plot(pred_x, pred_y, "r", label="Predicted")
+    plt.show()
+
+
+if __name__ == "__main__":
+    main()
