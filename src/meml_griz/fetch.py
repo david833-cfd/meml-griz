@@ -1,18 +1,19 @@
-from nba_api.stats.endpoints import leaguegamefinder
-from nba_api.stats.endpoints import boxscoretraditionalv3, boxscoreadvancedv3
-from nba_api.stats.static import teams
-from dataclasses import dataclass, field
-import pandas as pd
-from datetime import datetime
-import time
-from enum import Enum
-from loguru import logger
-from tqdm import tqdm
-import random
-from collections import namedtuple
-from meml_griz.settings import CACHE_DIR, SLEEP_MAX, SLEEP_MIN
-from pathlib import Path
+#!/user/bin/env python
+
 import os
+import random
+import time
+from collections import namedtuple
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+
+import pandas as pd
+from loguru import logger
+from nba_api.stats.endpoints import boxscoreadvancedv3, boxscoretraditionalv3, leaguegamefinder
+from tqdm import tqdm
+
+from meml_griz.settings import CACHE_DIR, SLEEP_MAX, SLEEP_MIN
 
 
 def main():

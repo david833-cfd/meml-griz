@@ -59,3 +59,7 @@ dev = { features = ["test", "dev"], solve-group = "default" }
 [tool.pixi.tasks]
 build = "uv build"
 test = "pytest -vvvv tests/"
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
