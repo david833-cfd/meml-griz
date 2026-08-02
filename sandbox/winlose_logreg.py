@@ -99,21 +99,8 @@ def main():
     y = train[list(targets)].to_numpy().ravel()
     model = pipeline.fit(X, y)
 
-    # Predict win/loss
-    predict = model.predict(test.reset_index()[features])
-    print(
-        f"Total predicted record for 2025 season: {predict.sum()} - {len(predict) - predict.sum()}"
-    )
-
-    # Score the model
-    sniff = snifcheck.ClassifierSniff.from_model_object(
-        model=model,
-        test_data=snifcheck.TestData(
-            X=test.reset_index()[features], y=test.reset_index()[list(targets)].to_numpy().ravel()
-        ),
-    )
-
-    print(sniff.classification_report)
+    # Serialize model
+    snifcheck.MLArtifact(model, test, train).save_model("winlose_logreg.pkl")
 
 
 if __name__ == "__main__":

@@ -28,13 +28,6 @@ def game_meta(mem_vs_hou):
     return game_data
 
 
-@pytest.fixture
-def season(my_team):
-    return fetch.SeasonData.from_date_range(
-        teams=[my_team], start_date=datetime(2025, 1, 1), end_date=datetime(2025, 1, 3)
-    )
-
-
 def test_home_away(mem_vs_hou):
     game_data = fetch.GameData.from_game_id(
         id_game=mem_vs_hou.game_id,
@@ -51,6 +44,10 @@ def test_game_meta(game_meta, mem_vs_hou):
     assert game_meta.matchup == mem_vs_hou.matchup
 
 
-def test_season_meta(season, my_team):
+def test_season_meta(my_team):
+
+    season = fetch.SeasonData.from_date_range(
+        teams=[my_team], start_date=datetime(2025, 1, 1), end_date=datetime(2025, 1, 12)
+    )
     assert isinstance(season.games, list)
     assert my_team in season.teams

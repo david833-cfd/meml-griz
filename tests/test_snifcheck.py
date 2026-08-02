@@ -2,6 +2,7 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+import pandas as pd
 import pytest
 from sklearn.linear_model import LinearRegression
 
@@ -19,6 +20,11 @@ def y_test(x_test):
 
 
 @pytest.fixture
+def test_dataframe(x_test, y_test):
+    return pd.DataFrame({"x": x_test.flatten(), "y": y_test.flatten()})
+
+
+@pytest.fixture
 def example_model(x_test, y_test):
     # Build simple linear model
     linreg = LinearRegression()
@@ -29,39 +35,41 @@ def example_model(x_test, y_test):
 @pytest.fixture
 def serial_path(tmp_path: Path, example_model) -> Path:
 
-    file_path = tmp_path / "example_model.joblib"
+    file_path = tmp_path / "example_model.pickle"
 
     joblib.dump(example_model, file_path)
 
     return file_path
 
 
-def test_model_serialization(serial_path, example_model):
+def test_model_serialization(serial_path, example_model, test_dataframe):
+    test_data = snifcheck.DataSamples(data=test_dataframe, x_names=["x"], y_names=["y"])
+
     # Serialize the model
-    loader = snifcheck.SklearnLoader(example_model, serial_path)
-    loader.serialize()
+    loader = snifcheck.MLArtifact(example_model, train=test_data, test=test_data)
+    loader.save_model(serial_path)
 
     # Deserialize the model
-    loaded_model = loader.deserialize()
+    loaded_model = loader.load_model(serial_path).model
 
     # Check that the loaded model is the same as the original
     assert np.allclose(loaded_model.coef_, example_model.coef_)
     assert np.allclose(loaded_model.intercept_, example_model.intercept_)
 
 
-def test_snif_factory(serial_path, example_model):
+def test_snif_factory(serial_path, example_model, test_dataframe):
 
-    test_data = snifcheck.TestData(X=x_test, y=y_test)
+    test_data = snifcheck.DataSamples(data=test_dataframe, x_names=["x"], y_names=["y"])
 
     # Serialize the model
-    loader = snifcheck.SklearnLoader(example_model, serial_path)
-    loader.serialize()
+    loader = snifcheck.MLArtifact(example_model, train=test_data, test=test_data)
+    loader.save_model(model_path=serial_path)
 
     # Use Sniff to load the model from serialized path
-    serial = snifcheck.BaseSniff.from_serialized_model(loader, test_data)
+    serial = snifcheck.BaseSniff.from_serialized_model(serial_path)
 
     # Load just the model
-    memory = snifcheck.BaseSniff.from_model_object(example_model, test_data)
+    memory = snifcheck.BaseSniff.from_model_artifact(loader)
 
     # Check that the loaded model is the same as the original
     assert np.allclose(serial.model.coef_, example_model.coef_)

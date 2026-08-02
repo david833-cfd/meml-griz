@@ -14,12 +14,14 @@ Pseudo code for sniffcheck.py
 
 """
 
+import os
+import pickle
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from joblib import dump, load
+import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
@@ -32,47 +34,70 @@ from sklearn.metrics import (
 
 
 @dataclass(frozen=True)
-class TestData:
-    X: np.ndarray
-    y: np.ndarray
+class DataSamples:
+    data: pd.DataFrame
+    x_names: list[str]
+    y_names: list[str]
+
+    @property
+    def X(self):
+        return self.data[self.x_names].to_numpy()
+
+    @property
+    def y(self):
+        return self.data[self.y_names].to_numpy().ravel()
 
 
-class ModelLoader(ABC):
-    def __init__(self, model, model_path: Path):
-        self.model = model
-        self.model_path = model_path
+@dataclass
+class MLArtifact:
+    model: object
+    test: DataSamples
+    train: DataSamples
 
-    @abstractmethod
-    def deserialize(self):
-        pass
+    @classmethod
+    def load_model(cls, model_path: os.PathLike):
+        with open(model_path, "rb") as fio:
+            ml_model = pickle.load(fio)
 
-    @abstractmethod
-    def serialize(self):
-        pass
+        return cls(
+            model=ml_model["model"],
+            test=ml_model["test"],
+            train=ml_model["train"],
+        )
 
+    def save_model(self, model_path: os.PathLike):
 
-class SklearnLoader(ModelLoader):
-    def deserialize(self):
-        return load(self.model_path)
+        out_path = Path(model_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def serialize(self):
-        return dump(self.model, self.model_path)
+        # TODO: save pytorch, gpytorch, and tensorflow models.
+
+        with open(out_path, "wb") as fio:
+            pickle.dump(
+                {
+                    "model": self.model,
+                    "test": self.test,
+                    "train": self.train,
+                },
+                fio,
+            )
 
 
 class BaseSniff(ABC):
-    def __init__(self, model, test_data: TestData):
-        self.model = model
-        self.test_data = test_data
+    def __init__(self, model):
+        self.model = model.model
+        self.test_data = model.test
+        self.train_data = model.train
 
     @classmethod
-    def from_model_object(cls, model, test_data: TestData):
-        return cls(model, test_data)
+    def from_model_artifact(cls, components: MLArtifact):
+        return cls(components)
 
     @classmethod
-    def from_serialized_model(cls, model_loader: ModelLoader, test_data: TestData):
+    def from_serialized_model(cls, model_path: os.PathLike):
         # Load in the serialized model
-        model = model_loader.deserialize()
-        return cls.from_model_object(model, test_data)
+        model = MLArtifact.load_model(model_path)
+        return cls.from_model_artifact(model)
 
     def get_prediction(self):
         return self.model.predict(self.test_data.X)
@@ -131,7 +156,19 @@ def main():
     pred_x = np.linspace(0, 10, 10).reshape(-1, 1)
     pred_y = model.predict(pred_x)
 
-    sniff = RegressorSniff.from_model_object(model=model, test_data=TestData(X=x, y=y))
+    build = MLArtifact(
+        model=model,
+        train=DataSamples(
+            data=pd.DataFrame({"x": x.flatten(), "y": y.flatten()}), x_names=["x"], y_names=["y"]
+        ),
+        test=DataSamples(
+            data=pd.DataFrame({"x": pred_x.flatten(), "y": pred_y.flatten()}),
+            x_names=["x"],
+            y_names=["y"],
+        ),
+    )
+
+    sniff = RegressorSniff.from_model_artifact(components=build)
 
     # Extract properties into a list of dictionaries
     df = pd.DataFrame(
