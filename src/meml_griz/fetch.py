@@ -10,7 +10,11 @@ from enum import Enum
 
 import pandas as pd
 from loguru import logger
-from nba_api.stats.endpoints import boxscoreadvancedv3, boxscoretraditionalv3, leaguegamefinder
+from nba_api.stats.endpoints import (
+    boxscoreadvancedv3,
+    boxscoretraditionalv3,
+    leaguegamefinder,
+)
 from tqdm import tqdm
 
 from meml_griz.settings import CACHE_DIR, SLEEP_MAX, SLEEP_MIN
@@ -31,7 +35,9 @@ def main():
     logger.info(f"Successfully loaded {len(griz_season.games)} games!")
     if griz_season.games:
         logger.info("\nFirst game roster extract:")
-        logger.info(griz_season.games[0].players[["familyName", "points", "assists"]].head())
+        logger.info(
+            griz_season.games[0].players[["familyName", "points", "assists"]].head()
+        )
 
     griz_season.get_team_stat()
 
@@ -136,13 +142,17 @@ class GameData:
         else:
             df = pd.read_parquet(cache_file)
 
-        instance = cls(players=df, game_id=id_game, game_date=game_date, matchup=matchup)
+        instance = cls(
+            players=df, game_id=id_game, game_date=game_date, matchup=matchup
+        )
 
         # Create data class
         return instance
 
     def add_full_name(self):
-        self.players["fullName"] = self.players["firstName"] + " " + self.players["familyName"]
+        self.players["fullName"] = (
+            self.players["firstName"] + " " + self.players["familyName"]
+        )
 
     @property
     def is_home(self):
@@ -208,8 +218,14 @@ class SeasonData:
         filter_games = games_df[
             (games_df["date_time"].between(start_date, end_date))
             & (games_df["SEASON_ID"].str.startswith(season_type.value))
-            & (games_df["TEAM_ABBREVIATION"].isin([team.abbreviation for team in teams]))
-            & (games_df.duplicated(subset=["GAME_ID"], keep="first"))  # Drop duplicate IDs
+            & (
+                games_df["TEAM_ABBREVIATION"].isin(
+                    [team.abbreviation for team in teams]
+                )
+            )
+            & (
+                games_df.duplicated(subset=["GAME_ID"], keep="first")
+            )  # Drop duplicate IDs
         ]
 
         results = []
@@ -257,7 +273,9 @@ class SeasonData:
     def get_participation_rate(self):
         ngames = len(self.season_df["gameId"].unique())
         self.season_df["gameParticipationRate"] = (
-            self.season_df.groupby("playerSlug")["gameId"].transform("count") / ngames * 100
+            self.season_df.groupby("playerSlug")["gameId"].transform("count")
+            / ngames
+            * 100
         )
 
     def get_team_stat(self):
@@ -295,7 +313,9 @@ class SeasonData:
         df = self.season_df.groupby(id_stats)[count_stats].sum().reset_index()
 
         # Get home/away team from matchup
-        df[["home_team", "away_team"]] = df["matchup"].str.split(" ", expand=True).loc[:, [0, 2]]
+        df[["home_team", "away_team"]] = (
+            df["matchup"].str.split(" ", expand=True).loc[:, [0, 2]]
+        )
 
         # Mark who won the game
         df["win"] = df["points"] == df.groupby(["gameId"])["points"].transform("max")
@@ -315,7 +335,9 @@ class SeasonData:
         self.team_stats_df = pd.concat([home, away], ignore_index=True)
 
 
-def pull_game_data(game_id: str, sleep_min: float = SLEEP_MIN, sleep_max: float = SLEEP_MAX):
+def pull_game_data(
+    game_id: str, sleep_min: float = SLEEP_MIN, sleep_max: float = SLEEP_MAX
+):
     # Get traditional box-score
     box = boxscoretraditionalv3.BoxScoreTraditionalV3(game_id=game_id, timeout=30)
     box_adv = boxscoreadvancedv3.BoxScoreAdvancedV3(game_id=game_id, timeout=30)

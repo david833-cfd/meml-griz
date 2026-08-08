@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from nba_api.stats.library.http import NBAStatsHTTP
 
 CACHE_DIR = Path().home() / ".meml_griz" / "cache"

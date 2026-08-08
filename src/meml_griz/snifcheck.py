@@ -16,7 +16,7 @@ Pseudo code for sniffcheck.py
 
 import os
 import pickle
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -159,7 +159,9 @@ def main():
     build = MLArtifact(
         model=model,
         train=DataSamples(
-            data=pd.DataFrame({"x": x.flatten(), "y": y.flatten()}), x_names=["x"], y_names=["y"]
+            data=pd.DataFrame({"x": x.flatten(), "y": y.flatten()}),
+            x_names=["x"],
+            y_names=["y"],
         ),
         test=DataSamples(
             data=pd.DataFrame({"x": pred_x.flatten(), "y": pred_y.flatten()}),
