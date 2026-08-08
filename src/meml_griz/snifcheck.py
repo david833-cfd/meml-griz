@@ -41,11 +41,11 @@ class DataSamples:
 
     @property
     def X(self):
-        return self.data[self.x_names].to_numpy()
+        return self.data[self.x_names]
 
     @property
     def y(self):
-        return self.data[self.y_names].to_numpy().ravel()
+        return self.data[self.y_names]
 
 
 @dataclass
