@@ -19,7 +19,12 @@ classifiers = [
 
 dependencies = [
     "nba_api>=1.4.1",
-    "pandas>=2.0.0",
+    "pandas",
+    "scikit-learn",
+    "tqdm",
+    "loguru",
+    "pyarrow",
+    "pathlib",
 ]
 
 [tool.pixi.workspace]
@@ -27,13 +32,12 @@ channels = ["conda-forge"]
 platforms = ["osx-arm64"] # Adjust for your exact OS
 
 [tool.pixi.dependencies]
-python = ">=3.11"
-uv = "*"
-tqdm = ">=4.68.4,<5"
-loguru = ">=0.7.3,<0.8"
+python = "*"
 seaborn = ">=0.13.2,<0.14"
 ipython = ">=9.15.0,<10"
 ipykernel = ">=7.3.0,<8"
+polars = ">=1.42.1,<2"
+jupyter = ">=1.1.1,<2"
 
 [tool.pixi.feature.test.dependencies]
 pytest = ">=8.0.0"
@@ -43,9 +47,10 @@ pytest-mock = ">=3.12.0"
 meml-griz = { path = ".", editable = true }
 
 [tool.pixi.feature.dev.dependencies]
-ipykernel = ">=6.0.0"
-nbstripout = ">=0.7.0"
-uv = ">=0.1.0"   
+ipykernel = "*"
+nbstripout = "*"
+uv = "*"   
+ruff = "*"
 
 [tool.pixi.environments]
 default = ["test"]
@@ -55,3 +60,9 @@ dev = { features = ["test", "dev"], solve-group = "default" }
 [tool.pixi.tasks]
 build = "uv build"
 test = "pytest -vvvv tests/"
+lint = "ruff check --fix"
+
+
+[tool.ruff.lint]
+extend-select = ["I"]
+
