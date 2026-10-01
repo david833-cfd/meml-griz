@@ -5,21 +5,21 @@ from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
-from torch import nn
+from torch import nn, optim
 
-from meml_griz import fetch, snifcheck, hugtorch
+from meml_griz import fetch, hugtorch, snifcheck
 
 
 class ClassNet(nn.Module):
-    def __init__(self):
+    def __init__(self, in_features: int, out_features: int):
         super().__init__()
         self.linear_layers = nn.Sequential(
-            nn.Linear(),
-            nn.Linear(),
+            nn.Linear(in_features=in_features, out_features=5),
+            nn.Linear(in_features=5, out_features=out_features),
         )
 
     def forward(self, x):
-        return nn.sigmoid(self.linear_layers(x))
+        return self.linear_layers(x)
 
 
 def main():
@@ -61,9 +61,7 @@ def main():
     df = df.sort_values(["teamSlug", "gameDate"]).reset_index(drop=True)
 
     # Create rolling mean of stats
-    roll_df = (
-        df.groupby("teamSlug").rolling(window=5, closed="left").mean(numeric_only=True)
-    )
+    roll_df = df.groupby("teamSlug").rolling(window=5, closed="left").mean(numeric_only=True)
     df[roll_df.columns] = roll_df.reset_index(level=0, drop=True)
 
     # Make training data set (all seasons before the 2025 season)
@@ -109,34 +107,29 @@ def main():
             ("preprocessor", preprocessor),
             (
                 "model",
-                LogisticRegression(
-                    random_state=99, class_weight="balanced", max_iter=100
-                ),
+                LogisticRegression(random_state=99, class_weight="balanced", max_iter=100),
             ),
         ]
     )
 
     # Fit the data on win or lose
-    X = train[features]
-    y = train[list(targets)].to_numpy().ravel()
+    X = preprocessor.fit_transform(train[features])
+    y = train[list(targets)].to_numpy(dtype=float)
 
     # Train torch model
-    model = ClassNet()
+    model = ClassNet(in_features=X.shape[1], out_features=y.shape[1])
     hugtorch.train_model(
         model=model,
-        optimizer=nn.optimizer.SGD(model.parameters(), lr=0.01),
+        optimizer=optim.SGD(model.parameters(), lr=0.01),
         loss_func=nn.BCEWithLogitsLoss(),
         x_train=X,
         y_train=y,
+        epochs=100,
     )
 
     # Serialize model
-    test_data = snifcheck.DataSamples(
-        data=test, x_names=features, y_names=list(targets)
-    )
-    train_data = snifcheck.DataSamples(
-        data=train, x_names=features, y_names=list(targets)
-    )
+    test_data = snifcheck.DataSamples(data=test, x_names=features, y_names=list(targets))
+    train_data = snifcheck.DataSamples(data=train, x_names=features, y_names=list(targets))
     snifcheck.MLArtifact(model, test_data, train_data).save_model("winlose_logreg.pkl")
 
 

@@ -38,6 +38,7 @@ ipython = ">=9.15.0,<10"
 ipykernel = ">=7.3.0,<8"
 polars = ">=1.42.1,<2"
 jupyter = ">=1.1.1,<2"
+pytorch = ">=2.13.0,<3"
 
 [tool.pixi.feature.test.dependencies]
 pytest = ">=8.0.0"
