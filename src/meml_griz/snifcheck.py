@@ -51,7 +51,6 @@ class DataSamples:
         return self.data[self.y_names]
 
 
-@dataclass
 class BaseSerializer(ABC):
     suffix: str = ""
 
@@ -79,7 +78,7 @@ class TorchSerializer(BaseSerializer):
 
 
 class SklearnSerializer(BaseSerializer):
-    suffix: str = ".model.pickle"
+    suffix: str = ".skmodel.pickle"
 
     def save(self, model, model_path: os.PathLike):
 
@@ -117,12 +116,12 @@ class MLArtifact:
 
     @staticmethod
     def get_meta_path(path: os.PathLike):
-        return path.with_suffix(".meta.pickle")
+        return Path(path).with_suffix(".meta.pickle")
 
     @classmethod
-    def load_from_pickle(cls, model_path: os.PathLike):
+    def load_from_pickle(cls, path_stem: os.PathLike):
         # Get the meta data path
-        metadata_path = cls.get_meta_path(model_path)
+        metadata_path = cls.get_meta_path(path_stem)
 
         with open(metadata_path, "rb") as f:
             meta_data = pickle.load(f)
@@ -135,27 +134,28 @@ class MLArtifact:
         )
 
         # Load the model with serializer
-        artifact.model = artifact.serializer.load(model_path)
+        artifact.model = artifact.serializer.load(path_stem)
 
         return artifact
 
-    def save_to_pickle(self, model_path: os.PathLike):
+    def save_to_pickle(self, path_stem: os.PathLike):
         # Define path to write
-        out_path = Path(model_path)
+        out_path = Path(path_stem)
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Save the model
+        logger.debug(f"Serializing model to: {out_path=}")
         self.serializer.save(self.model, out_path)
 
         # Define meta dict
         meta_data = {
-            "ml_lib": self.ml_lib,
+            "ml_lib": self.ml_lib.value,
             "test": self.test,
             "train": self.train,
         }
 
         # Pickle the data
-        metadata_path = self.get_meta_path(model_path)
+        metadata_path = self.get_meta_path(path_stem)
         with open(metadata_path, "wb") as f:
             pickle.dump(meta_data, f)
 

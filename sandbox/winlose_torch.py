@@ -130,7 +130,8 @@ def main():
     # Serialize model
     test_data = snifcheck.DataSamples(data=test, x_names=features, y_names=list(targets))
     train_data = snifcheck.DataSamples(data=train, x_names=features, y_names=list(targets))
-    snifcheck.MLArtifact(model, test_data, train_data).save_model("winlose_logreg.pkl")
+    artifact = snifcheck.MLArtifact(model, test_data, train_data, snifcheck.MLibrary.TORCH)
+    artifact.save_to_pickle("winlose_torch.pkl")
 
 
 if __name__ == "__main__":
