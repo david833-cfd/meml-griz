@@ -1,6 +1,13 @@
+import sys
 from pathlib import Path
 
+from loguru import logger
 from nba_api.stats.library.http import NBAStatsHTTP
+
+# Set logging level
+logger.remove(0)
+logger.add(sys.stderr, level="DEBUG")
+
 
 CACHE_DIR = Path().home() / ".meml_griz" / "cache"
 DB_DIR = CACHE_DIR.parent.resolve()
