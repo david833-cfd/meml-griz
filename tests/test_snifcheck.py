@@ -67,7 +67,7 @@ def test_snif_factory(serial_path, example_model, test_dataframe):
     loader = snifcheck.MLArtifact(
         example_model, train=test_data, test=test_data, ml_lib=snifcheck.MLibrary.SKLEARN
     )
-    loader.save_to_pickle(model_path=serial_path)
+    loader.save_to_pickle(path_stem=serial_path)
 
     # Use Sniff to load the model from serialized path
     serial = snifcheck.BaseSniff.from_serialized_model(serial_path)
@@ -80,3 +80,8 @@ def test_snif_factory(serial_path, example_model, test_dataframe):
     assert np.allclose(serial.model.intercept_, example_model.intercept_)
     assert np.allclose(serial.model.coef_, memory.model.coef_)
     assert np.allclose(serial.model.intercept_, memory.model.intercept_)
+
+
+def test_ml_lib_enum():
+    assert snifcheck.MLibrary.SKLEARN == "sklearn"
+    assert snifcheck.MLibrary.TORCH == "torch"

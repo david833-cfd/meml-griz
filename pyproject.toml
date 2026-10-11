@@ -48,7 +48,7 @@ pytest-mock = ">=3.12.0"
 meml-griz = { path = ".", editable = true }
 
 [tool.pixi.feature.dev.dependencies]
-ipykernel = "*"
+ipykernel = ">=7.4.0,<8"
 nbstripout = "*"
 uv = "*"   
 ruff = "*"
@@ -60,9 +60,12 @@ dev = { features = ["test", "dev"], solve-group = "default" }
 
 [tool.pixi.tasks]
 build = "uv build"
-test = "pytest -vvvv tests/"
-lint = "ruff check --fix"
 
+[tool.pixi.feature.test.tasks]
+test = "pytest -vvvv tests/"
+
+[tool.pixi.feature.dev.tasks]
+lint = "ruff check --fix"
 
 [tool.ruff.lint]
 extend-select = ["I"]

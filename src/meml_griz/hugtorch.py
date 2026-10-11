@@ -8,15 +8,14 @@ def train_model(
     model: nn.Module,
     optimizer: torch.optim,
     loss_func: nn.Module,
-    x_train: np.ndarray | torch.tensor,
-    y_train: np.ndarray | torch.tensor,
+    x_train: np.ndarray | torch.Tensor,
+    y_train: np.ndarray | torch.Tensor,
     epochs: int,
 ) -> nn.Module:
 
     # Get the device
-    device = "mps" if torch.mps.is_available else "cpu"
-    # device = "cuda" if torch.cuda.is_available else device
-    logger.debug(f"{device=}")
+    device = "mps" if torch.mps.is_available() else "cpu"
+    logger.debug(f"Training on {device=}")
 
     # Put the model on the device
     model.to(device)
@@ -40,6 +39,8 @@ def train_model(
 
     # Loop through epochs
     for epoch in range(epochs):
+        running_loss = 0.0
+
         for X, y in dataloader:
             # Forward pass
             y_pred = model(X)
@@ -55,6 +56,13 @@ def train_model(
 
             # Optimizer step
             optimizer.step()
+
+            running_loss += loss.item()
+
+        # Display loss to screen
+        logger.info(
+            f"Epoch [{epoch + 1}/{epochs}] complete. Average Loss: {running_loss / len(dataloader):.4f}"
+        )
 
     return model
 

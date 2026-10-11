@@ -74,7 +74,7 @@ class TorchSerializer(BaseSerializer):
     def load(self, path: os.PathLike):
         import torch
 
-        return torch.load(path.with_suffix(self.suffix))
+        return torch.load(path.with_suffix(self.suffix), weights_only=False)
 
 
 class SklearnSerializer(BaseSerializer):
@@ -109,9 +109,12 @@ class MLArtifact:
     test: DataSamples
     train: DataSamples
     ml_lib: MLibrary
+    preprocessor: object = None
 
     @property
     def serializer(self):
+        logger.debug(f"{self.ml_lib=}")
+        logger.debug(f"{self.ml_lib.serializer=}")
         return self.ml_lib.serializer
 
     @staticmethod
@@ -120,6 +123,9 @@ class MLArtifact:
 
     @classmethod
     def load_from_pickle(cls, path_stem: os.PathLike):
+        # Make sure path is a pathlib obj
+        path_stem = Path(path_stem)
+
         # Get the meta data path
         metadata_path = cls.get_meta_path(path_stem)
 
@@ -128,9 +134,10 @@ class MLArtifact:
 
         artifact = cls(
             model=None,
-            ml_lib=meta_data["ml_lib"],
+            ml_lib=MLibrary(meta_data["ml_lib"]),
             test=meta_data["test"],
             train=meta_data["train"],
+            preprocessor=meta_data.get("preprocessor", None),
         )
 
         # Load the model with serializer
@@ -152,6 +159,7 @@ class MLArtifact:
             "ml_lib": self.ml_lib.value,
             "test": self.test,
             "train": self.train,
+            "preprocessor": self.preprocessor,
         }
 
         # Pickle the data
@@ -165,19 +173,56 @@ class BaseSniff(ABC):
         self.model = model.model
         self.test_data = model.test
         self.train_data = model.train
+        self.ml_lib = model.ml_lib
+        self.preprocessor = getattr(model, "preprocessor", None)
 
     @classmethod
     def from_model_artifact(cls, components: MLArtifact):
         return cls(components)
 
     @classmethod
-    def from_serialized_model(cls, model_path: os.PathLike):
+    def from_serialized_model(cls, path_stem: os.PathLike):
         # Load in the serialized model
-        model = MLArtifact.load_from_pickle(model_path)
+        model = MLArtifact.load_from_pickle(path_stem)
         return cls.from_model_artifact(model)
 
     def get_prediction(self):
-        return self.model.predict(self.test_data.X)
+
+        if self.ml_lib == MLibrary.SKLEARN:
+            return self.model.predict(self.test_data.X)
+        elif self.ml_lib == MLibrary.TORCH:
+            import torch
+
+            # Use GPU if available
+            device = "mps" if torch.mps.is_available() else "cpu"
+
+            # Pre-process the data
+            if self.preprocessor is not None:
+                x_input = self.preprocessor.transform(self.test_data.X)
+            else:
+                x_input = self.test_data.X.to_numpy()
+
+            # Convert test X data to torch tensor.
+            x_tensor = torch.from_numpy(x_input.astype(np.float32))
+
+            # Put model and X on same device
+            self.model.to(device)
+            x_tensor = x_tensor.to(device)
+            logger.debug(f"Using {device=} for foward pass.")
+
+            # Put into eval model
+            self.model.eval()
+
+            # Turn off grad tracking. Get prediction as np array.
+            with torch.no_grad():
+                y_pred = self.model(x_tensor).cpu().numpy().flatten()
+
+            logger.debug("Made the torch prediction.")
+
+            # If classifier, then convert data to int
+            if isinstance(self, ClassifierSniff):
+                return (y_pred >= 0.0).astype(int)
+            return y_pred
 
     @property
     def y_prediction(self) -> np.ndarray:

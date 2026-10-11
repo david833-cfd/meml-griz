@@ -2,7 +2,6 @@ from datetime import datetime
 
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 from torch import nn, optim
@@ -102,16 +101,6 @@ def main():
         remainder="drop",
     )
 
-    pipeline = Pipeline(
-        steps=[
-            ("preprocessor", preprocessor),
-            (
-                "model",
-                LogisticRegression(random_state=99, class_weight="balanced", max_iter=100),
-            ),
-        ]
-    )
-
     # Fit the data on win or lose
     X = preprocessor.fit_transform(train[features])
     y = train[list(targets)].to_numpy(dtype=float)
@@ -130,7 +119,13 @@ def main():
     # Serialize model
     test_data = snifcheck.DataSamples(data=test, x_names=features, y_names=list(targets))
     train_data = snifcheck.DataSamples(data=train, x_names=features, y_names=list(targets))
-    artifact = snifcheck.MLArtifact(model, test_data, train_data, snifcheck.MLibrary.TORCH)
+    artifact = snifcheck.MLArtifact(
+        model,
+        test_data,
+        train_data,
+        snifcheck.MLibrary.TORCH,
+        preprocessor,
+    )
     artifact.save_to_pickle("winlose_torch.pkl")
 
 
