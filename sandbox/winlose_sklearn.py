@@ -4,7 +4,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OrdinalEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from meml_griz import fetch, snifcheck
 
@@ -49,13 +49,17 @@ def main():
 
     # Create rolling mean of stats
     roll_df = df.groupby("teamSlug").rolling(window=5, closed="left").mean(numeric_only=True)
-    df[roll_df.columns] = roll_df.reset_index(level=0, drop=True)
+
+    # Add data to main df
+    roll_df = roll_df.reset_index(level=0, drop=True)
+    df[roll_df.columns] = roll_df
+    df = df.dropna().reset_index(drop=True)
 
     # Make training data set (all seasons before the 2025 season)
     train = df.query("seasonYear < 2025")
 
     # Create testing data for the grizzlies
-    test = df[(df["seasonYear"] == 2025) & (df["teamSlug"] == "grizzlies")]
+    test = df[(df["seasonYear"] == 2025)]
 
     # Make sklearn pipeline
     number_cols = list(nums)
@@ -72,8 +76,10 @@ def main():
     str_trans = Pipeline(
         steps=[
             ("imputer", SimpleImputer(strategy="most_frequent")),
-            ("encode", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1)),
-            ("scaler", StandardScaler()),
+            (
+                "encode",
+                OneHotEncoder(handle_unknown="ignore", sparse_output=False),
+            ),
         ]
     )
 
@@ -89,7 +95,7 @@ def main():
     pipeline = Pipeline(
         steps=[
             ("preprocessor", preprocessor),
-            ("model", LogisticRegression(random_state=99, class_weight="balanced", max_iter=100)),
+            ("model", LogisticRegression(random_state=99, class_weight="balanced", max_iter=250)),
         ]
     )
 

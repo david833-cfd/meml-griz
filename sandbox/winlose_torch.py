@@ -3,7 +3,7 @@ from datetime import datetime
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OrdinalEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from torch import nn, optim
 
 from meml_griz import fetch, hugtorch, snifcheck
@@ -12,13 +12,20 @@ from meml_griz import fetch, hugtorch, snifcheck
 class ClassNet(nn.Module):
     def __init__(self, in_features: int, out_features: int):
         super().__init__()
-        self.linear_layers = nn.Sequential(
-            nn.Linear(in_features=in_features, out_features=5),
-            nn.Linear(in_features=5, out_features=out_features),
+        self.layers = nn.Sequential(
+            nn.Linear(in_features=in_features, out_features=64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(in_features=64, out_features=32),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(in_features=32, out_features=16),
+            nn.ReLU(),
+            nn.Linear(in_features=16, out_features=out_features),
         )
 
     def forward(self, x):
-        return self.linear_layers(x)
+        return self.layers(x)
 
 
 def main():
@@ -56,12 +63,16 @@ def main():
     targets = {"win"}
     nums = set(columns) - cats - drops - bools - targets
 
-    #  Sort by game data and team
+    # Sort by game data and team
     df = df.sort_values(["teamSlug", "gameDate"]).reset_index(drop=True)
 
     # Create rolling mean of stats
     roll_df = df.groupby("teamSlug").rolling(window=5, closed="left").mean(numeric_only=True)
-    df[roll_df.columns] = roll_df.reset_index(level=0, drop=True)
+
+    # Add data to main df
+    roll_df = roll_df.reset_index(level=0, drop=True)
+    df[roll_df.columns] = roll_df
+    df = df.dropna().reset_index(drop=True)
 
     # Make training data set (all seasons before the 2025 season)
     train = df.query("seasonYear < 2025")
@@ -86,9 +97,8 @@ def main():
             ("imputer", SimpleImputer(strategy="most_frequent")),
             (
                 "encode",
-                OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
+                OneHotEncoder(handle_unknown="ignore", sparse_output=False),
             ),
-            ("scaler", StandardScaler()),
         ]
     )
 
@@ -109,7 +119,7 @@ def main():
     model = ClassNet(in_features=X.shape[1], out_features=y.shape[1])
     hugtorch.train_model(
         model=model,
-        optimizer=optim.SGD(model.parameters(), lr=0.01),
+        optimizer=optim.Adam(model.parameters(), lr=0.001),
         loss_func=nn.BCEWithLogitsLoss(),
         x_train=X,
         y_train=y,

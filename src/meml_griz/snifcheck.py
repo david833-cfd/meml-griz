@@ -215,14 +215,18 @@ class BaseSniff(ABC):
 
             # Turn off grad tracking. Get prediction as np array.
             with torch.no_grad():
-                y_pred = self.model(x_tensor).cpu().numpy().flatten()
+                y_pred = self.model(x_tensor)
+
+                # Convert from logits to probabilities
+                probs = torch.sigmoid(y_pred).cpu().numpy().flatten()
 
             logger.debug("Made the torch prediction.")
 
             # If classifier, then convert data to int
             if isinstance(self, ClassifierSniff):
-                return (y_pred >= 0.0).astype(int)
-            return y_pred
+                logger.debug("self is ClassifierSniff")
+                return (probs >= 0.5).astype(int)
+            return probs
 
     @property
     def y_prediction(self) -> np.ndarray:

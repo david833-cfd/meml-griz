@@ -59,10 +59,11 @@ def train_model(
 
             running_loss += loss.item()
 
+        # Calculate total epoch loss of all batches
+        epoch_loss = running_loss / len(dataloader)
+
         # Display loss to screen
-        logger.info(
-            f"Epoch [{epoch + 1}/{epochs}] complete. Average Loss: {running_loss / len(dataloader):.4f}"
-        )
+        logger.info(f"Epoch {epoch + 1}/{epochs}:. Loss: {epoch_loss:.2f}")
 
     return model
 
