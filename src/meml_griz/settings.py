@@ -6,7 +6,7 @@ from nba_api.stats.library.http import NBAStatsHTTP
 
 # Set logging level
 logger.remove(0)
-logger.add(sys.stderr, level="DEBUG")
+logger.add(sys.stderr, level="INFO")
 
 
 CACHE_DIR = Path().home() / ".meml_griz" / "cache"
