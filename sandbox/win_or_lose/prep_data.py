@@ -1,15 +1,15 @@
 from datetime import datetime
 
+import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
-from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
-from meml_griz import fetch, snifcheck
+from meml_griz import fetch
 
 
-def main():
+def get_nba_dataset() -> pd.DataFrame:
     # Fetch all NBA team data
     seasons = []
     nba_teams = [team for team in fetch.NbaTeams]
@@ -24,27 +24,7 @@ def main():
     df = seasons.team_stats_df.copy().drop_duplicates()
     print(f"Data shape after removing duplicates: {df.shape}")
 
-    # Clean data
-    columns = df.columns.tolist()
-
-    drops = {
-        "gameId",
-        "teamId",
-        "teamCity",
-        "teamName",
-        "gameDate",
-        "teamTricode",
-        "seasonYear",
-        "matchup",
-        "home_team",
-        "away_team",
-    }
-    bools = {"home_game"}
-    cats = {"teamSlug"}
-    targets = {"win"}
-    nums = set(columns) - cats - drops - bools - targets
-
-    #  Sort by game data and team
+    # Sort by game data and team
     df = df.sort_values(["teamSlug", "gameDate"]).reset_index(drop=True)
 
     # Create rolling mean of stats
@@ -54,18 +34,12 @@ def main():
     roll_df = roll_df.reset_index(level=0, drop=True)
     df[roll_df.columns] = roll_df
     df = df.dropna().reset_index(drop=True)
+    return df
 
-    # Make training data set (all seasons before the 2025 season)
-    train = df.query("seasonYear < 2025")
 
-    # Create testing data for the grizzlies
-    test = df[(df["seasonYear"] == 2025)]
-
-    # Make sklearn pipeline
-    number_cols = list(nums)
-    bool_cols = list(bools)
-    cat_cols = list(cats)
-    features = number_cols + bool_cols + cat_cols
+def get_preprocessor(
+    df: pd.DataFrame, number_cols: list[str], cat_cols: list[str], bool_cols: list[str]
+) -> ColumnTransformer:
 
     num_trans = Pipeline(
         steps=[
@@ -83,7 +57,7 @@ def main():
         ]
     )
 
-    preprocessor = ColumnTransformer(
+    return ColumnTransformer(
         transformers=[
             ("numbers", num_trans, number_cols),
             ("categories", str_trans, cat_cols),
@@ -92,25 +66,39 @@ def main():
         remainder="drop",
     )
 
-    pipeline = Pipeline(
-        steps=[
-            ("preprocessor", preprocessor),
-            ("model", LogisticRegression(random_state=99, class_weight="balanced", max_iter=250)),
-        ]
-    )
 
-    # Fit the data on win or lose
-    X = train[features]
-    y = train[list(targets)].to_numpy().ravel()
-    model = pipeline.fit(X, y)
-
-    # Serialize model
-    test_data = snifcheck.DataSamples(data=test, x_names=features, y_names=list(targets))
-    train_data = snifcheck.DataSamples(data=train, x_names=features, y_names=list(targets))
-    snifcheck.MLArtifact(model, test_data, train_data, snifcheck.MLibrary.SKLEARN).save_to_pickle(
-        path_stem="winlose_sklearn"
-    )
+def get_features(
+    number_cols: list[str], bool_cols: list[str], cat_cols: list[str], label_cols: list[str]
+) -> list[str]:
+    return list(set(number_cols + bool_cols + cat_cols) - set(label_cols))
 
 
-if __name__ == "__main__":
-    main()
+def get_number_cols(
+    df: pd.DataFrame, bools: set[str], cats: set[str], labels: str[str]
+) -> tuple[list[str], list[str], list[str]]:
+    drops = {
+        "gameId",
+        "teamId",
+        "teamCity",
+        "teamName",
+        "gameDate",
+        "teamTricode",
+        "seasonYear",
+        "matchup",
+        "home_team",
+        "away_team",
+    }
+    bools = {"home_game"}
+    cats = {"teamSlug"}
+    labels = {"win"}
+    return list(set(df.columns.tolist()) - cats - drops - bools - labels)
+
+
+def get_nba_train_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    # Make training data set (all seasons before the 2025 season)
+    train = df.query("seasonYear < 2025")
+
+    # Create testing data for the 2025 season
+    test = df[(df["seasonYear"] == 2025)]
+
+    return train, test
