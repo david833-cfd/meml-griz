@@ -23,7 +23,7 @@ def main():
     }
 
     for name, check in sniffs.items():
-        print("**" * 10)
+        print("*" * 32)
         print(f"Method: {name:<10s}")
         print(check.classification_report)
 
