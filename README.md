@@ -1,7 +1,7 @@
 # meml_griz
 Memphis Grizzlies ML (`meml_griz`)
 
-This project uses the nba_api python project to download NBA game data and create ML models.
+This project uses the [nba_api](https://github.com/swar/nba_api) python project to download NBA game data and create ML models.
 
 ## Goals
 ### 1. Create a data pipeline that gathers NBA stats.
