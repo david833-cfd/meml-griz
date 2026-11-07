@@ -28,7 +28,9 @@ def get_nba_dataset() -> pd.DataFrame:
     df = df.sort_values(["teamSlug", "gameDate"]).reset_index(drop=True)
 
     # Create rolling mean of stats
-    roll_df = df.groupby("teamSlug").rolling(window=5, closed="left").mean(numeric_only=True)
+    roll_df = (
+        df.groupby("teamSlug").rolling(window=5, closed="left").mean(numeric_only=True)
+    )
 
     # Add data to main df
     roll_df = roll_df.reset_index(level=0, drop=True)
@@ -68,7 +70,10 @@ def get_preprocessor(
 
 
 def get_features(
-    number_cols: list[str], bool_cols: list[str], cat_cols: list[str], label_cols: list[str]
+    number_cols: list[str],
+    bool_cols: list[str],
+    cat_cols: list[str],
+    label_cols: list[str],
 ) -> list[str]:
     return list(set(number_cols + bool_cols + cat_cols) - set(label_cols))
 
@@ -83,15 +88,8 @@ def get_number_cols(
         "teamName",
         "gameDate",
         "teamTricode",
-        "seasonYear",
-        "matchup",
-        "home_team",
-        "away_team",
     }
-    bools = {"home_game"}
-    cats = {"teamSlug"}
-    labels = {"win"}
-    return list(set(df.columns.tolist()) - cats - drops - bools - labels)
+    return list(set(df.columns.tolist()) - set(cats) - drops - set(bools) - set(labels))
 
 
 def get_nba_train_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
